@@ -4,7 +4,7 @@ const path = require('path');
 
 async function githubCommand(sock, chatId, message) {
   try {
-    const res = await axios.get('https://api.github.com/repos/Aadhixd777/ZORO-MD', {
+    const res = await axios.get('https://api.github.com/repos/A-d-i-t-h-y-a-n-x-d/ZORO-MD', {
       headers: {
         'User-Agent': 'ZORO-MD-Bot',
         'Accept': 'application/vnd.github.v3+json'
@@ -23,7 +23,7 @@ async function githubCommand(sock, chatId, message) {
     txt += `✩  *𝗪𝗮𝘁𝗰𝗵𝗲𝗿𝘀* : ${json.watchers_count || 0}\n`;
     txt += `✩  *𝗦𝗶𝘇𝗲* : ${((json.size || 0) / 1024).toFixed(2)} MB\n`;
     txt += `✩  *𝗟𝗮𝘀𝘁 𝗨𝗽𝗱𝗮𝘁𝗲𝗱* : ${updatedAt}\n`;
-    txt += `✩  *𝗨𝗥𝗟* : ${json.html_url || 'https://github.com/Aadhixd777/ZORO-MD.git'}\n`;
+    txt += `✩  *𝗨𝗥𝗟* : ${json.html_url || 'https://github.com/A-d-i-t-h-y-a-n-x-d/ZORO-MD.git'}\n`;
     txt += `✩  *𝗙𝗼𝗿𝗸𝘀* : ${json.forks_count || 0}\n`;
     txt += `✩  *𝗦𝘁𝗮𝗿𝘀* : ${json.stargazers_count || 0}\n`;
     txt += `✩  *𝗟𝗮𝗻𝗴𝘂𝗮𝗴𝗲* : ${json.language || 'JavaScript'}\n\n`;
