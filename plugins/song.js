@@ -2,12 +2,16 @@ const yts = require('yt-search');
 const axios = require('axios');
 const yt = require('@vreden/youtube_scraper');
 
-// Function to convert text to the specified bold sans font style while preserving capitalization
+// Function to convert text to Title Case and apply Mathematical Bold font style
 function applyCustomFont(text) {
-    return text.replace(/[A-Za-z0-9]/g, c => {
+    const titleCaseText = text.replace(/\w\S*/g, (txt) => 
+        txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    );
+
+    return titleCaseText.replace(/[A-Za-z0-9]/g, c => {
         const code = c.charCodeAt(0);
-        if (code >= 48 && code <= 57) return String.fromCodePoint(code + 0x1D7EC - 48); // Numbers
-        const c_offset = c <= 'Z' ? 0x1D56C : 0x1D586; // Uppercase and Lowercase letters
+        if (code >= 48 && code <= 57) return String.fromCodePoint(code + 0x1D7CE - 48); // Bold Numbers (0-9)
+        const c_offset = c <= 'Z' ? 0x1D400 : 0x1D41A; // Mathematical Bold Uppercase & Lowercase
         return String.fromCodePoint(code - (c <= 'Z' ? 65 : 97) + c_offset);
     });
 }
@@ -23,35 +27,35 @@ async function songCommand(sock, chatId, message) {
         
         if (!text) {
             return await sock.sendMessage(chatId, { 
-                text: 'âŒ *Error:* Please provide a song name!\nðŸ’¡ *Example:* `.song Oh My Sweety`' 
+                text: '❌ *Error:* Please provide a song name!\n💡 *Example:* `.song Oh My Sweety`' 
             }, { quoted: message });
         }
 
         // Send processing reaction
-        await sock.sendMessage(chatId, { react: { text: "â³", key: message.key } });
+        await sock.sendMessage(chatId, { react: { text: "⏳", key: message.key } });
 
         // Search YouTube
         const searchResults = await yts(text);
         const videos = searchResults?.videos;
         
         if (!videos || videos.length === 0) {
-            return await sock.sendMessage(chatId, { text: "âŒ *Oops!* No songs found matching your query." }, { quoted: message });
+            return await sock.sendMessage(chatId, { text: "❌ *Oops!* No songs found matching your query." }, { quoted: message });
         }
         
         const video = videos[0];
 
-        // Apply custom font while preserving sentence case & capitalization
+        // Apply custom Title Case font styling
         const styledTitle = applyCustomFont(video.title);
         const styledChannel = applyCustomFont(video.author.name);
 
         // Styled caption format
         const captionText = 
-`â•­â”€â”€â”€â”€â”€â”€â”€ã€” ð™ðŽð‘ðŽ ðƒðŽð–ðð‹ðŽð€ðƒð„ð‘ ã€•â”€â”€â”€â”€â”€â”€â”€
-â”œ ðŸŽ¬ ð—§ð—¶ð˜ð—¹ð—²: ${styledTitle}
-â”œ ðŸ“º ð—–ð—µð—®ð—»ð—»ð—²ð—¹: ${styledChannel}
-â”œ â° ð——ð˜‚ð—¿ð—®ð˜ð—¶ð—¼ð—»: ${video.timestamp}
-â”œ ðŸ‘ï¸ ð—©ð—¶ð—²ð˜„ð˜€: ${video.views.toLocaleString()}
-â•°â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€`;
+`╭───────〔 𝐙𝐎𝐑𝐎 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑 〕───────
+├ 🎬 𝗧𝗶𝘁𝗹𝗲: ${styledTitle}
+├ 📺 𝗖𝗵𝗮𝗻𝗻𝗲𝗹: ${styledChannel}
+├ ⏰ 𝗗𝘂𝗿𝗮𝘁𝗶𝗼𝗻: ${video.timestamp}
+├ 👁️ 𝗩𝗶𝗲𝘄𝘀: ${video.views.toLocaleString()}
+╰─────────────────────────`;
 
         // Send thumbnail card message
         await sock.sendMessage(chatId, { 
@@ -67,7 +71,7 @@ async function songCommand(sock, chatId, message) {
         const res = await yt.ytmp3(video.url, 128);
         
         if (!res || !res.status || !res.download?.url) {
-            return await sock.sendMessage(chatId, { text: "âŒ Audio download failed from server!" }, { quoted: message });
+            return await sock.sendMessage(chatId, { text: "❌ Audio download failed from server!" }, { quoted: message });
         }
 
         const dlUrl = res.download.url;
@@ -95,12 +99,12 @@ async function songCommand(sock, chatId, message) {
         }, { quoted: message });
 
         // Send success reaction
-        await sock.sendMessage(chatId, { react: { text: "ðŸŽ§", key: message.key } });
+        await sock.sendMessage(chatId, { react: { text: "🎧", key: message.key } });
 
     } catch (err) {
         console.error('Zoro MD Song Error:', err);
         try {
-            await sock.sendMessage(chatId, { text: `âŒ *Error:* Could not process this request.` }, { quoted: message });
+            await sock.sendMessage(chatId, { text: `❌ *Error:* Could not process this request.` }, { quoted: message });
         } catch (secondaryErr) {}
     }
 }
