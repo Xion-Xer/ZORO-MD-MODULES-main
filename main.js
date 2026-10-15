@@ -82,6 +82,7 @@ const { truthCommand } = require('./plugins/truth');
 const { clearCommand } = require('./plugins/clear');
 const pingCommand = require('./plugins/ping');
 const aliveCommand = require('./plugins/alive');
+const sayMyNameCommand = require('./plugins/saymyname');
 const animEditCommand = require('./plugins/animedit');
 const blurCommand = require('./plugins/img-blur');
 const { welcomeCommand, handleJoinEvent } = require('./plugins/welcome');
@@ -815,6 +816,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage === '.alive':
                 await aliveCommand(sock, chatId, message);
+                break;
+            case userMessage === '.saymyname':
+                await sayMyNameCommand(sock, chatId, message);
                 break;
             case userMessage.startsWith('.sad') || userMessage.startsWith('.happy'):
                 await animEditCommand(sock, chatId, message);
