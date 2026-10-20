@@ -1,114 +1,126 @@
 const fetch = require('node-fetch');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { downloadMediaMessage } = require('@aadhixd777/baileys');
+const Groq = require('groq-sdk');
 
 // ==========================================
-// HARDCODED CREDENTIALS
+// GROQ CREDENTIALS
 // ==========================================
-const GEMINI_API_KEY = "AQ.Ab8RN6I7ZtFzQtRRXmB-nOMxNN8qr8U5Xe8wEtCFHUSeTOjK3Q";
+const GROQ_API_KEY = "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";
 const GOOGLE_SEARCH_API_KEY = "AIzaSyDvLB63zbpbkKXUXF9VWzzHiolFgPM9UdQ";
 const SEARCH_ENGINE_ID = "d064955b6bf534c90";
 
-const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
+const groq = new Groq({ apiKey: GROQ_API_KEY });
+const ACTIVE_MODEL = "openai/gpt-oss-20b"; 
 
 async function executeGoogleSearch(searchQuery) {
-    const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(searchQuery)}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Google Search API Error: ${response.status}`);
-    const data = await response.json();
-    if (!data.items || data.items.length === 0) return "No web results found.";
-    return data.items.slice(0, 3).map((item, index) => ({
-        position: index + 1,
-        title: item.title,
-        snippet: item.snippet,
-        link: item.link
-    }));
+    try {
+        let cleanQuery = searchQuery;
+        if (typeof searchQuery === 'object' && searchQuery !== null) {
+            cleanQuery = searchQuery.query || JSON.stringify(searchQuery);
+        }
+        
+        if (!cleanQuery) return "No search query provided.";
+
+        const url = `https://googleapis.com{GOOGLE_SEARCH_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(String(cleanQuery).trim())}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Google Search API Error: ${response.status}`);
+        
+        const data = await response.json();
+        if (!data.items || data.items.length === 0) return "No web results found.";
+        
+        return data.items.slice(0, 3).map((item, index) => ({
+            position: index + 1,
+            title: item.title,
+            snippet: item.snippet,
+            link: item.link
+        }));
+    } catch (e) {
+        console.error("Search Fetch Error:", e);
+        return `Search failed due to error: ${e.message}`;
+    }
 }
 
 const googleSearchTool = {
-    functionDeclarations: [{
+    type: "function",
+    function: {
         name: "googleSearch",
-        description: "Searches the live internet via Google Custom Search API. Use this for finding songs, lyrics, BookMyShow, Crunchyroll, or latest news.",
+        description: "Use this tool ONLY when the user is explicitly looking for songs, audio, lyrics, latest movies, live news, or real-time web results. For general knowledge, programming, and simple reasoning, do NOT use this tool and reply directly.",
         parameters: {
-            type: "OBJECT",
-            properties: { query: { type: "STRING" } },
+            type: "object",
+            properties: { 
+                query: { type: "string", description: "The specific song name, lyrics, or live data to search on Google." } 
+            },
             required: ["query"]
         }
-    }]
+    }
 };
 
 async function findCommand(sock, chatId, message, query) {
     await sock.sendMessage(chatId, { react: { text: '🤖', key: message.key } });
 
     try {
-        const isSongQuery = message.message?.conversation?.toLowerCase().includes('findsong') || 
-                            message.message?.extendedTextMessage?.text?.toLowerCase().includes('findsong');
+        // യൂസറുടെ മെസ്സേജ് ടെക്സ്റ്റ് കൃത്യമായി എടുക്കുന്നു
+        const userRawMessage = message.message?.conversation || message.message?.extendedTextMessage?.text || "";
+        const isSongQuery = userRawMessage.toLowerCase().includes('findsong');
 
-        // ജെമിനി 3.8 ഫ്ലാഷ് മോഡൽ സെറ്റ് ചെയ്തിരിക്കുന്നു
-        const model = ai.getGenerativeModel({ model: 'gemini-3.8-flash', tools: [googleSearchTool] });
+        let userMessageContent = query ? `User Question: ${query}` : "User sent a message.";
 
-        const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-        let contents = [];
+        let messages = [
+            { 
+                role: "system", 
+                content: "You are a helpful AI assistant. Answer general knowledge and coding questions directly from your own knowledge. Only call the 'googleSearch' tool if the user explicitly asks for songs, audio files, lyrics, current news, or real-time internet information." 
+            },
+            { role: "user", content: userMessageContent }
+        ];
 
-        if (quoted && (quoted.audioMessage || quoted.voiceMessage)) {
-            const mediaType = quoted.audioMessage ? quoted.audioMessage : quoted.voiceMessage;
-            const buffer = await downloadMediaMessage(
-                { message: quoted },
-                'buffer',
-                {},
-                { logger: console }
-            );
+        // നിർബന്ധപൂർവ്വം ടൂൾ ഓൺ ചെയ്യണോ അതോ ഓട്ടോമാറ്റിക് വേണോ എന്ന് കോഡ് വഴി തീരുമാനിക്കുന്നു
+        let toolConfig = {
+            model: ACTIVE_MODEL, 
+            messages: messages,
+            tools: [googleSearchTool]
+        };
 
-            contents.push({
-                inlineData: {
-                    mimeType: mediaType.mimetype || 'audio/ogg; codecs=opus',
-                    data: buffer.toString('base64')
-                }
-            });
-
-            const audioPrompt = query ? `Listen to this audio and answer this: ${query}` : `Listen to this audio and explain or answer what is being said in simple words.`;
-            contents.push(audioPrompt);
-        } else if (query) {
-            let systemPrompt = "";
-            if (isSongQuery) {
-                systemPrompt = `User wants to find a song or music details based on this query: "${query}". Use the googleSearch tool to find exact details.`;
-            } else {
-                systemPrompt = `User Question: ${query}. Answer directly using your general knowledge. ONLY use the googleSearch tool if the user explicitly asks for recent news or current live events.`;
-            }
-            contents.push(systemPrompt);
+        // യൂസർ ഫൈൻഡ് സോങ്ങ് (findsong) ആണ് ഉപയോഗിച്ചതെങ്കിൽ ടൂൾ നിർബന്ധമായും റൺ ചെയ്യാൻ ആവശ്യപ്പെടുന്നു
+        if (isSongQuery) {
+            toolConfig.tool_choice = { type: "function", function: { name: "googleSearch" } };
         } else {
-            await sock.sendMessage(chatId, { 
-                text: '_Please type your question or reply to a voice message with `.findanswer`!_' 
-            }, { quoted: message });
-            return;
+            toolConfig.tool_choice = "auto"; // സാധാരണ ചോദ്യങ്ങൾക്ക് ബോട്ട് സ്വയം ഉത്തരം പറയും
         }
 
-        const chatSession = await model.generateContent(contents);
+        let chatCompletion = await groq.chat.completions.create(toolConfig);
 
+        let responseMessage = chatCompletion.choices[0].message; 
         let finalReply = "";
-        const functionCalls = chatSession.response.functionCalls;
-        const call = functionCalls ? functionCalls[0] : null;
 
-        if (call && call.name === "googleSearch") {
-            const searchQuery = call.args.query || query;
-            const searchResults = await executeGoogleSearch(searchQuery);
+        // മോഡൽ ടൂൾ കോൾ ചെയ്യുകയാണെങ്കിൽ മാത്രം ഗൂഗിൾ സെർച്ച് നടത്തുന്നു
+        if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+            const toolCall = responseMessage.tool_calls[0]; 
+            const functionName = toolCall.function.name;
+            
+            if (functionName === "googleSearch") {
+                const args = JSON.parse(toolCall.function.arguments);
+                const searchQuery = args.query || query || userRawMessage;
+                
+                const searchResults = await executeGoogleSearch(searchQuery);
 
-            const secondResponse = await model.generateContent([
-                { role: 'user', parts: [{ text: query || "Audio query" }] },
-                { role: 'model', parts: [{ functionCall: call }] },
-                { 
-                    role: 'function', 
-                    parts: [{ 
-                        functionResponse: { 
-                            name: 'googleSearch', 
-                            response: { results: searchResults } 
-                        } 
-                    }] 
-                }
-            ]);
-            finalReply = secondResponse.response.text() || "Failed to generate response.";
+                messages.push(responseMessage);
+                messages.push({
+                    tool_call_id: toolCall.id,
+                    role: "tool",
+                    name: functionName,
+                    content: JSON.stringify(searchResults)
+                });
+
+                const secondResponse = await groq.chat.completions.create({
+                    model: ACTIVE_MODEL, 
+                    messages: messages
+                });
+
+                finalReply = secondResponse.choices[0].message.content || "Failed to generate response.";
+            }
         } else {
-            finalReply = chatSession.response.text() || "Failed to generate response.";
+            // സാധാരണ ചോദ്യങ്ങൾക്ക് ഗൂഗിളിൽ പോകാതെ നേരിട്ട് ബോട്ട് തരുന്ന മറുപടി
+            finalReply = responseMessage.content || "Failed to generate response.";
         }
 
         await sock.sendMessage(chatId, { text: `🤖 *Result*\n\n${finalReply}` }, { quoted: message });
