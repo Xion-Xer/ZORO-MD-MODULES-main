@@ -4,20 +4,24 @@ const path = require('path');
 
 const configPath = path.join(__dirname, '../data/autostatus_config.json');
 
-// Helper function to load configuration
+// Memory Cache - ബോട്ടിൽ പെർഫോമൻസ് ലാഗ് ഒഴിവാക്കാൻ
+let configCache = null;
+
 function loadConfig() {
+    if (configCache) return configCache;
     try {
         if (fs.existsSync(configPath)) {
             const data = fs.readFileSync(configPath, 'utf8');
-            return JSON.parse(data);
+            configCache = JSON.parse(data);
+            return configCache;
         }
     } catch (err) {
         console.error('Error loading autostatus config:', err);
     }
-    return { enabled: false };
+    configCache = { enabled: false };
+    return configCache;
 }
 
-// Helper function to save configuration
 function saveConfig(config) {
     try {
         const dir = path.dirname(configPath);
@@ -25,13 +29,17 @@ function saveConfig(config) {
             fs.mkdirSync(dir, { recursive: true });
         }
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        configCache = config;
     } catch (err) {
         console.error('Error saving autostatus config:', err);
     }
 }
 
-let lastUsedEmoji = '';
+// 🛑 കണ്ടു കഴിഞ്ഞ സ്റ്റാറ്റസ് ഐഡികൾ സേവ് ചെയ്തു വെക്കാൻ (ഡ്യൂപ്ലിക്കേറ്റ് തടയാൻ)
 const processedStatuses = new Set();
+
+// 🎨 അവസാനം ഉപയോഗിച്ച 10 ഇമോജികൾ ഓർത്തു വെക്കാൻ (ആവർത്തനം ഇല്ലാതെ വേറെ വേറെ ഇമോജികൾ വരാൻ)
+const recentEmojis = [];
 
 // 1. Command handler for .autostatus on / .autostatus off
 async function autoStatusCommand(sock, chatId, message, args) {
@@ -64,24 +72,28 @@ async function autoStatusCommand(sock, chatId, message, args) {
     }
 }
 
-// 2. Status update listener (Auto View & Smart Non-Repeating Reaction)
+// 2. Status update listener
 async function handleStatusUpdate(sock, status) {
     try {
         const config = loadConfig();
+        // .autostatus on ചെയ്താൽ മാത്രം മുന്നോട്ട് പോകുക
         if (!config.enabled) return;
 
         const m = status.messages ? status.messages[0] : status;
         if (!m || !m.key || m.key.remoteJid !== 'status@broadcast') return;
 
+        // നമ്മൾ ഇട്ട സ്വന്തം സ്റ്റാറ്റസുകൾക്ക് റിയാക്ട് ചെയ്യാതിരിക്കാൻ
+        if (m.key.fromMe) return;
+
         const statusId = m.key.id;
         if (!statusId) return;
 
-        // Prevent duplicate processing of already viewed status
+        // 🚨 പ്രധാനം: ഈ സ്റ്റാറ്റസ് ഐഡി മുൻപ് പ്രൊസസ്സ് ചെയ്തിട്ടുണ്ടെങ്കിൽ ഇവിടെ വെച്ച് സ്റ്റോപ്പ് ചെയ്യും (ഡ്യൂപ്ലിക്കേറ്റ് റിയാക്ഷൻ പോകില്ല)
         if (processedStatuses.has(statusId)) return;
         processedStatuses.add(statusId);
 
-        // Memory cleanup to keep memory usage low
-        if (processedStatuses.size > 200) {
+        // മെമ്മറി കൂടുതൽ എടുക്കാതിരിക്കാൻ പഴയ 2000 സ്റ്റാറ്റസ് ഐഡികൾ കഴിഞ്ഞ് ബാക്കി നീക്കം ചെയ്യും
+        if (processedStatuses.size > 2000) {
             const firstItem = processedStatuses.values().next().value;
             processedStatuses.delete(firstItem);
         }
@@ -89,10 +101,14 @@ async function handleStatusUpdate(sock, status) {
         const participant = m.key.participant || m.participant;
         if (!participant) return;
 
-        // Automatically view the status
-        await sock.readMessages([m.key]);
+        // 1. സ്റ്റാറ്റസ് റീഡ് ചെയ്ത് Blue Tick നൽകുന്നു
+        await sock.readMessages([{
+            remoteJid: 'status@broadcast',
+            id: statusId,
+            participant: participant
+        }]);
 
-        // Custom emoji list provided by user (37 emojis)
+        // 37 ഇമോജികളുടെ ലിസ്റ്റ്
         const emojiList = [
             '😚', '🐾', '🍒', '🫦', '👅', '👀', '🫆', '👶🏻', '👨🏻‍🎓', '🧚🏻',
             '🧚🏻‍♂️', '💃🏻', '🐱', '🦋', '🐣', '🪽', '🐦‍🔥', '🍃', '🌺', '🌸',
@@ -100,12 +116,19 @@ async function handleStatusUpdate(sock, status) {
             '🔗', '💖', '🤍', '🔐', '💗', '☯️', '⚛️'
         ];
 
-        // Anti-repeat logic (filters out the last used emoji)
-        const availableEmojis = emojiList.filter(e => e !== lastUsedEmoji);
-        const selectedEmoji = availableEmojis[Math.floor(Math.random() * availableEmojis.length)];
-        lastUsedEmoji = selectedEmoji;
+        // 🎲 റാൻഡം ഇമോജി സെലക്ഷൻ: തൊട്ടുമുമ്പ് ഉപയോഗിച്ച 10 ഇമോജികൾ ഒഴിവാക്കുന്നു
+        const availableEmojis = emojiList.filter(e => !recentEmojis.includes(e));
+        
+        // ലഭ്യമായവയിൽ നിന്ന് മാത്രം ഒരു റാൻഡം ഇമോജി എടുക്കുന്നു
+        const selectedEmoji = availableEmojis[Math.floor(Math.random() * availableEmojis.length)] || emojiList[0];
 
-        // Send single reaction to the status
+        // പുതിയ ഇമോജി റീസെന്റ് ലിസ്റ്റിലേക്ക് ചേർക്കുന്നു
+        recentEmojis.push(selectedEmoji);
+        if (recentEmojis.length > 10) {
+            recentEmojis.shift(); // 10-ൽ കൂടുതൽ ആകുമ്പോൾ പഴയത് ഡിലീറ്റ് ചെയ്യും
+        }
+
+        // 2. സ്റ്റാറ്റസിന് റിയാക്ഷൻ അയക്കുന്നു
         await sock.sendMessage('status@broadcast', {
             react: {
                 text: selectedEmoji,
@@ -113,7 +136,7 @@ async function handleStatusUpdate(sock, status) {
             }
         }, { statusJidList: [participant] });
 
-        console.log(`[AUTO-STATUS] Viewed status and reacted with ${selectedEmoji}`);
+        console.log(`[AUTO-STATUS] Reacted to status (${statusId}) with ${selectedEmoji}`);
     } catch (err) {
         console.error('Auto Status Update Error:', err);
     }
