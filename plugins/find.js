@@ -1,24 +1,22 @@
 const fetch = require('node-fetch');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { downloadMediaMessage } = require('@aadhixd777/baileys');
 
 // ==========================================
 // HARDCODED CREDENTIALS
 // ==========================================
-const GEMINI_API_KEY = "AQ.Ab8RN6Kv1G-fjmbHxqjgPFZbsNKGBxlozxUMvYqoSBgEHrOH3w";
+const GEMINI_API_KEY = "AQ.Ab8RN6I7ZtFzQtRRXmB-nOMxNN8qr8U5Xe8wEtCFHUSeTOjK3Q";
 const GOOGLE_SEARCH_API_KEY = "AIzaSyDvLB63zbpbkKXUXF9VWzzHiolFgPM9UdQ";
 const SEARCH_ENGINE_ID = "d064955b6bf534c90";
 
-// Google Custom Search execution
+const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
+
 async function executeGoogleSearch(searchQuery) {
     const url = `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(searchQuery)}`;
     const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Google Search API Error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Google Search API Error: ${response.status}`);
     const data = await response.json();
-    if (!data.items || data.items.length === 0) {
-        return "No web results found.";
-    }
+    if (!data.items || data.items.length === 0) return "No web results found.";
     return data.items.slice(0, 3).map((item, index) => ({
         position: index + 1,
         title: item.title,
@@ -27,87 +25,76 @@ async function executeGoogleSearch(searchQuery) {
     }));
 }
 
-// Google Search Tool declaration for Gemini
 const googleSearchTool = {
-    functionDeclarations: [
-        {
-            name: "googleSearch",
-            description: "Searches the live internet via Google Custom Search API to fetch real-time web pages, recent news, and factual details.",
-            parameters: {
-                type: "OBJECT",
-                properties: {
-                    query: {
-                        type: "STRING",
-                        description: "The search query generated based on the user question."
-                    }
-                },
-                required: ["query"]
-            }
+    functionDeclarations: [{
+        name: "googleSearch",
+        description: "Searches the live internet via Google Custom Search API. Use this for finding songs, lyrics, BookMyShow, Crunchyroll, or latest news.",
+        parameters: {
+            type: "OBJECT",
+            properties: { query: { type: "STRING" } },
+            required: ["query"]
         }
-    ]
+    }]
 };
 
-// ==========================================
-// 1. .FINDSONG HANDLER
-// ==========================================
-async function handleFindSong(sock, chatId, message, query) {
-    if (!query) {
-        await sock.sendMessage(chatId, { 
-            text: '_Please type `.findsong [song name or lyrics]`!_\n\n_Example: `.findsong believer imagine dragons`_' 
-        }, { quoted: message });
-        return;
-    }
-
-    await sock.sendMessage(chatId, { react: { text: '🎵', key: message.key } });
-
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-            { role: 'user', parts: [{ text: `Find detailed information, artist name, album, lyrics, and YouTube search context for the song: "${query}". Provide a well-formatted clean response.` }] }
-        ]
-    });
-
-    const reply = response.text || "Could not find details for this song.";
-    await sock.sendMessage(chatId, { text: `🎵 *Find Song Result*\n\n${reply}` }, { quoted: message });
-}
-
-// ==========================================
-// 2. .FINDANSWER HANDLER
-// ==========================================
-async function handleFindAnswer(sock, chatId, message, query) {
-    if (!query) {
-        await sock.sendMessage(chatId, { 
-            text: '_Please type `.findanswer [your question]`!_\n\n_Example: `.findanswer what is the latest news about space`_' 
-        }, { quoted: message });
-        return;
-    }
-
+async function findCommand(sock, chatId, message, query) {
     await sock.sendMessage(chatId, { react: { text: '🤖', key: message.key } });
 
-    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    try {
+        const isSongQuery = message.message?.conversation?.toLowerCase().includes('findsong') || 
+                            message.message?.extendedTextMessage?.text?.toLowerCase().includes('findsong');
 
-    const chatSession = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
-            { role: 'user', parts: [{ text: `User Question: ${query}. Use the googleSearch tool only if you absolutely require live web data or current information to answer accurately.` }] }
-        ],
-        config: {
-            tools: [googleSearchTool]
+        // ജെമിനി 3.8 ഫ്ലാഷ് മോഡൽ സെറ്റ് ചെയ്തിരിക്കുന്നു
+        const model = ai.getGenerativeModel({ model: 'gemini-3.8-flash', tools: [googleSearchTool] });
+
+        const quoted = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        let contents = [];
+
+        if (quoted && (quoted.audioMessage || quoted.voiceMessage)) {
+            const mediaType = quoted.audioMessage ? quoted.audioMessage : quoted.voiceMessage;
+            const buffer = await downloadMediaMessage(
+                { message: quoted },
+                'buffer',
+                {},
+                { logger: console }
+            );
+
+            contents.push({
+                inlineData: {
+                    mimeType: mediaType.mimetype || 'audio/ogg; codecs=opus',
+                    data: buffer.toString('base64')
+                }
+            });
+
+            const audioPrompt = query ? `Listen to this audio and answer this: ${query}` : `Listen to this audio and explain or answer what is being said in simple words.`;
+            contents.push(audioPrompt);
+        } else if (query) {
+            let systemPrompt = "";
+            if (isSongQuery) {
+                systemPrompt = `User wants to find a song or music details based on this query: "${query}". Use the googleSearch tool to find exact details.`;
+            } else {
+                systemPrompt = `User Question: ${query}. Answer directly using your general knowledge. ONLY use the googleSearch tool if the user explicitly asks for recent news or current live events.`;
+            }
+            contents.push(systemPrompt);
+        } else {
+            await sock.sendMessage(chatId, { 
+                text: '_Please type your question or reply to a voice message with `.findanswer`!_' 
+            }, { quoted: message });
+            return;
         }
-    });
 
-    let finalReply = "";
-    const call = chatSession.functionCalls?.[0];
+        const chatSession = await model.generateContent(contents);
 
-    if (call && call.name === "googleSearch") {
-        const searchQuery = call.args.query || query;
-        const searchResults = await executeGoogleSearch(searchQuery);
+        let finalReply = "";
+        const functionCalls = chatSession.response.functionCalls;
+        const call = functionCalls ? functionCalls[0] : null;
 
-        const secondResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [
-                { role: 'user', parts: [{ text: `User Question: ${query}` }] },
+        if (call && call.name === "googleSearch") {
+            const searchQuery = call.args.query || query;
+            const searchResults = await executeGoogleSearch(searchQuery);
+
+            const secondResponse = await model.generateContent([
+                { role: 'user', parts: [{ text: query || "Audio query" }] },
                 { role: 'model', parts: [{ functionCall: call }] },
                 { 
                     role: 'function', 
@@ -118,42 +105,16 @@ async function handleFindAnswer(sock, chatId, message, query) {
                         } 
                     }] 
                 }
-            ]
-        });
-
-        finalReply = secondResponse.text || "Failed to generate an accurate response.";
-    } else {
-        finalReply = chatSession.text || "Failed to generate an accurate response.";
-    }
-
-    await sock.sendMessage(chatId, { text: `🤖 *Find Answer*\n\n${finalReply}` }, { quoted: message });
-}
-
-// ==========================================
-// MAIN MASTER COMMAND DISPATCHER
-// ==========================================
-async function findCommand(sock, chatId, message) {
-    try {
-        const text = message.message?.conversation || 
-                     message.message?.extendedTextMessage?.text || 
-                     message.message?.imageMessage?.caption || 
-                     message.message?.videoMessage?.caption || "";
-
-        const trimmedText = text.trim();
-
-        // Check for .findsong
-        if (/^\.findsong\b/i.test(trimmedText) || /^\.find song\b/i.test(trimmedText)) {
-            const query = trimmedText.replace(/^\.findsong\s*/i, '').replace(/^\.find song\s*/i, '').trim();
-            await handleFindSong(sock, chatId, message, query);
-        } 
-        // Check for .findanswer
-        else if (/^\.findanswer\b/i.test(trimmedText) || /^\.find answer\b/i.test(trimmedText)) {
-            const query = trimmedText.replace(/^\.findanswer\s*/i, '').replace(/^\.find answer\s*/i, '').trim();
-            await handleFindAnswer(sock, chatId, message, query);
+            ]);
+            finalReply = secondResponse.response.text() || "Failed to generate response.";
+        } else {
+            finalReply = chatSession.response.text() || "Failed to generate response.";
         }
+
+        await sock.sendMessage(chatId, { text: `🤖 *Result*\n\n${finalReply}` }, { quoted: message });
     } catch (error) {
-        console.error("Find Command Error:", error);
-        await sock.sendMessage(chatId, { text: `❌ _Error processing request: ${error.message}_` }, { quoted: message });
+        console.error(error);
+        await sock.sendMessage(chatId, { text: `❌ Error: ${error.message}` }, { quoted: message });
     }
 }
 
