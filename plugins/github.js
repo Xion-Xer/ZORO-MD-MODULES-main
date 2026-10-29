@@ -4,7 +4,7 @@ const path = require('path');
 
 async function githubCommand(sock, chatId, message) {
   try {
-    const res = await axios.get('https://api.github.com/repos/xion-xer/ZORO-MD', {
+    const res = await axios.get('https://api.github.com/repos/Xion-Xer/ZORO-MD', {
       headers: {
         'User-Agent': 'ZORO-MD-Bot',
         'Accept': 'application/vnd.github.v3+json'
