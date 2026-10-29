@@ -1,5 +1,6 @@
 const os = require('os');
 const fs = require('fs');
+const sharp = require('sharp');
 const settings = require('../settings.js');
 
 function formatTime(seconds) {
@@ -19,85 +20,81 @@ function formatTime(seconds) {
     return time.trim();
 }
 
-function getSpeedEmoji(ping) {
-    if (ping < 100) return '🚀';
-    if (ping < 300) return '⚡';
-    return '🛰️';
-}
-
-function getSpeedStatus(ping) {
-    if (ping < 100) return '𝗛𝗬𝗣𝗘𝗥 𝗦𝗣𝗘𝗘𝗗';
-    if (ping < 300) return '𝗢𝗣𝗧𝗜𝗠𝗔𝗟';
-    return '𝗗𝗘𝗟𝗔𝗬𝗘𝗗';
-}
-
 async function pingCommand(sock, chatId, message) {
     try {
         const start = Date.now();
-        // Simple but powerful entry
         const tempMsg = await sock.sendMessage(chatId, { text: '⚡ *[ ZORO MD ]* _Analyzing server latency..._' }, { quoted: message });
         const end = Date.now();
         const ping = Math.round((end - start) / 2);
 
-        // Delete the initial checking message
         await sock.sendMessage(chatId, { delete: tempMsg.key });
 
         const uptimeInSeconds = process.uptime();
         const uptimeFormatted = formatTime(uptimeInSeconds);
-        const speedEmoji = getSpeedEmoji(ping);
-        const speedStatus = getSpeedStatus(ping);
-        
-        const cpuUsage = os.loadavg()[0].toFixed(2);
-        const totalMem = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(2);
-        const freeMem = (os.freemem() / (1024 * 1024 * 1024)).toFixed(2);
-        const usedMem = (totalMem - freeMem).toFixed(2);
-        const memPercent = ((usedMem / totalMem) * 100).toFixed(1);
 
-        // Truly original premium design
-        const botInfo = `
-✨ *❖━━━━━━[ 𝗭𝗢𝗥𝗢 𝗠𝗗 𝗣𝗜𝗡𝗚 ]━━━━━━❖* ✨
+        const imageUrl = "https://files.catbox.moe/i9hpvp.jpg"; 
 
-*“ Speed defines power, performance defines class. ”*
+        // 🖼️ Sharp വെച്ച് ഇമേജ് ബേസ്64 (Base64) ആക്കി കൺവേർട്ട് ചെയ്യുന്നു (ലോഗോയിൽ പെർഫെക്റ്റ് ആയി വരാൻ)
+        let thumbnailBuffer = null;
+        let base64Image = '';
+        try {
+            const response = await fetch(imageUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
 
-*┌────────────────────────┐*
-*│ 📊 PERFORMANCE STATS*
-*│*
-*│* 🚀 *𝗣𝗶𝗻𝗴:* \`${ping} 𝗺𝘀\`
-*│* ⚡ *𝗥𝗮𝗻𝗸:* \`${speedStatus}\`
-*│* ⏳ *𝗨𝗽𝘁𝗶𝗺𝗲:* \`${uptimeFormatted}\`
-*└────────────────────────┘*
-
-*┌────────────────────────┐*
-*│ 🧠 SYSTEM ARCHITECTURE*
-*│*
-*│* 🖥️ *𝗖𝗣𝗨 𝗟𝗼𝗮𝗱:* \`${cpuUsage}%\`
-*│* 💾 *𝗥𝗔𝗠 𝗨𝘀𝗲𝗱:* \`${usedMem} 𝗚𝗕\`
-*│* 📊 *𝗠𝗲𝗺𝗼𝗿𝘆:* \`${memPercent}%\`
-*│* 📦 *𝗩𝗲𝗿𝘀𝗶𝗼𝗻:* \`v${settings.version}\`
-*└────────────────────────┘*
-
-*🔥 Engine status: Running flawlessly.*
-*━━━━━━━━━━━━━━━━━━━━━━━━━━━*
-> *© 𝗢𝘄𝗻𝗲𝗿 & 𝗗𝗲𝘃𝗲𝗹𝗼𝗽𝗲𝗱 𝗯𝘆 👑 𝗔𝗮𝗱𝗵𝗶𝘅𝗱 ⚡*`;
-
-        const imageUrl = "https://files.catbox.moe/5ayv13.jpg"; 
-        const bgmPath = './media/zoro_bgm.mp3'; 
-
-        // 1. Send the image with the premium caption
-        await sock.sendMessage(chatId, { 
-            image: { url: imageUrl }, 
-            caption: botInfo.trim() 
-        }, { quoted: message });
-
-        // 2. Play the background BGM as a normal Audio File
-        if (fs.existsSync(bgmPath)) {
-            const audioBuffer = fs.readFileSync(bgmPath);
-            await sock.sendMessage(chatId, {
-                audio: audioBuffer,
-                mimetype: 'audio/mp4', // Standard audio player format
-                ptt: false // Set to false to show as a clickable audio file, not a voice note
-            }, { quoted: message });
+            thumbnailBuffer = await sharp(buffer)
+                .resize(300, 300, { fit: 'cover', position: 'center' })
+                .jpeg({ quality: 90 })
+                .toBuffer();
+            
+            base64Image = thumbnailBuffer.toString('base64');
+        } catch (err) {
+            console.log('Error processing image with sharp:', err);
         }
+
+        // ============================================
+        // 𓇻 CONTACT CARD (vCard) WITH PHOTO ENCODING
+        // ============================================
+        const vcardName = "𝐀𝐚𝐝𝐡𝐢𝐱𝐝";
+        
+        // vCard-ൽ ഫോട്ടോ നേരിട്ട് ബേസ്64 ഫോർമാറ്റിൽ നൽകിയാൽ വാട്സാപ്പ് സർക്കിൾ ലോഗോയിൽ ആ ഇമേജ് എടുക്കും
+        const vcard = [
+            'BEGIN:VCARD',
+            'VERSION:3.0',
+            `N:;${vcardName};;;`,
+            `FN:${vcardName}`,
+            base64Image ? `PHOTO;ENCODING=b;TYPE=JPEG:${base64Image}` : '',
+            'END:VCARD'
+        ].filter(Boolean).join('\n');
+
+        const vcardReply = {
+            key: {
+                fromMe: false,
+                participant: '0@s.whatsapp.net',
+                remoteJid: 'status@broadcast'
+            },
+            message: {
+                contactMessage: {
+                    displayName: vcardName,
+                    vcard: vcard,
+                    jpegThumbnail: thumbnailBuffer
+                }
+            }
+        };
+
+        const pingText = `
+⚡ *𝙕𝙊𝙍𝙊 𝗠𝗗 SPEED*
+
+🚄 *Latency:* \`${ping}ms\`
+📡 *Status:* Online
+
+> 𝘱𝘰𝘸𝘦𝘳𝘦𝘥 𝘣𝘺 𝘢𝘥𝘩𝘪𝘹𝘥 </>`.trim();
+
+        // Send message with quoted contact card and thumbnail
+        await sock.sendMessage(chatId, { 
+            text: pingText,
+            jpegThumbnail: thumbnailBuffer
+        }, { quoted: vcardReply });
 
     } catch (error) {
         console.error('Error in ping command:', error);
