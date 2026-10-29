@@ -56,7 +56,7 @@ async function helpCommand(sock, chatId, message) {
     let userName = message.pushName || "Aadhi Xd";
     
     const vcardImageUrl = "https://files.catbox.moe/5tnppp.jpg";
-    const menuImageUrl = "https://files.catbox.moe/ib9hd4.jpg";
+    const menuVideoUrl = "https://files.catbox.moe/4i9a80.mp4";
 
     let thumbnailBuffer = null;
     let base64Image = '';
@@ -336,16 +336,20 @@ ${readMoreKey}
 > _Crafted by Aadhi.xd乡_`;
 
     try {
-        await sock.sendMessage(chatId, { 
-            image: { url: menuImageUrl },
-            caption: helpMessage,
-            jpegThumbnail: thumbnailBuffer,
-            buttons: [
-                { buttonId: 'btn1', buttonText: { displayText: '📋' }, type: 1, url: 'https://whatsapp.com/channel/0029Vb7pgsF4tRrkS5CECe24' },
-                { buttonId: 'btn2', buttonText: { displayText: '👍🏻' }, type: 1, url: 'https://wa.me/918136880986' },
-                { buttonId: 'btn3', buttonText: { displayText: '🏷️' }, type: 1, url: 'https://github.com/A-d-i-t-h-y-a-n-x-d' }
-            ],
-            headerType: 4
+        await sock.sendMessage(chatId, {
+            video: { url: menuVideoUrl },
+            caption: helpMessage.trim(),
+            mimetype: 'video/mp4',
+            ptv: false,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: '120363321456789012@newsletter',
+                    newsletterName: '𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝑶𝒇𝒇𝒊𝒄𝒊𝒂𝒍',
+                    serverMessageId: 100
+                }
+            }
         }, { quoted: vcardReply });
 
     } catch (error) {
