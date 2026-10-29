@@ -3,20 +3,8 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
-// List of media URLs (Images and Videos) for random selection
-const mediaUrls = [
-    // Images
-    "https://files.catbox.moe/o6cxcz.jpg",
-    "https://files.catbox.moe/9fxrv8.jpg",
-    "https://files.catbox.moe/ik3wje.jpg",
-    "https://files.catbox.moe/nbz0o0.jpg",
-    "https://files.catbox.moe/kfop9g.jpg",
-    "https://files.catbox.moe/srzqxk.jpg",
-    "https://files.catbox.moe/3i4oyx.jpg",
-    // Videos
-    "https://files.catbox.moe/vy5vyt.mp4",
-    "https://files.catbox.moe/m8h87j.mp4"
-];
+// നീ അയച്ചു തന്ന പുതിയ സിംഗിൾ വീഡിയോ ലിങ്ക് ഇവിടെ അപ്ഡേറ്റ് ചെയ്തിട്ടുണ്ട്
+const aliveVideoUrl = "https://files.catbox.moe/g48zuo.mp4";
 
 function formatTime(seconds) {
     const days = Math.floor(seconds / (24 * 60 * 60));
@@ -62,7 +50,7 @@ function getBotMode() {
 async function aliveCommand(sock, chatId, message) {
     try {
         const start = Date.now();
-        const tempMsg = await sock.sendMessage(chatId, { text: '⚡ Checking...' }, { quoted: message });
+        const tempMsg = await sock.sendMessage(chatId, { text: '⚡ 𝑪𝒉𝒆𝒄𝒌𝒊𝒏𝒈...' }, { quoted: message });
         const end = Date.now();
         const ping = Math.round((end - start) / 2);
         
@@ -75,41 +63,28 @@ async function aliveCommand(sock, chatId, message) {
         const totalMem = (os.totalmem() / (1024 * 1024 * 1024)).toFixed(2);
         const freeMem = (os.freemem() / (1024 * 1024 * 1024)).toFixed(2);
         const usedMem = (totalMem - freeMem).toFixed(2);
+        let userName = message.pushName || "Aadhi Xd";
 
-        const aliveMessage = `
-╭━━━━━━━━━━━━━━━━━━━━━╮
-┃  ✨𝗭𝗢𝗥𝗢 𝐌𝐃 ✨
-┃━━━━━━━━━━━━━━━━━━━━━
-┃ 🟢 𝗦𝘁𝗮𝘁𝘂𝘀: 𝗢𝗻𝗹𝗶𝗻𝗲 & 𝗔𝗰𝘁𝗶𝘃𝗲
-┃━━━━━━━━━━━━━━━━━━━━━
-┃ 👑 𝗢𝘄𝗻𝗲𝗿: 𝗔𝗮𝗱𝗵𝗶𝘅𝗱
-┃ 📦 𝗩𝗲𝗿𝘀𝗶𝗼𝗻: ${settings.version}
-┃ 🔐 𝗠𝗼𝗱𝗲: ${botMode}
-┃ ⏰ 𝗧𝗶𝗺𝗲: ${currentTime}
-┃━━━━━━━━━━━━━━━━━━━━━
-┃ ⚡ 𝗦𝗽𝗲𝗲𝗱: ${ping}ms
-┃ 🕐 𝗨𝗽𝘁𝗶𝗺𝗲: ${uptimeFormatted}
-┃ 💾 𝗥𝗔𝗠: ${usedMem}GB / ${totalMem}GB
-┃━━━━━━━━━━━━━━━━━━━━━
-┃ 🌟 𝗙𝗲𝗮𝘁𝘂𝗿𝗲𝘀:
-┃ ├ 📥 𝗗𝗼𝘄𝗻𝗹𝗼𝗮𝗱𝗲𝗿
-┃ ├ 🎮 𝗚𝗮𝗺𝗲𝘀
-┃ ├ 🤖 𝗔𝗜 𝗧𝗼𝗼𝗹𝘀
-┃ ├ 👥 𝗚𝗿𝗼𝘂𝗽 𝗠𝗮𝗻𝗮𝗴𝗲
-┃ └ 🎨 𝗠𝗲𝗱𝗶𝗮 𝗧𝗼𝗼𝗹𝘀
-╰━━━━━━━━━━━━━━━━━━━━━╯
-  
-  📝 𝗧𝘆𝗽𝗲 *.𝗺𝗲𝗻𝘂* 𝗳𝗼𝗿 𝗰𝗼𝗺𝗺𝗮𝗻𝗱𝘀
-  
-  © 𝗣𝗼𝘄𝗲𝗿𝗲𝗱 𝗯𝘆 𝗔𝗮𝗱𝗵𝗶𝘅𝗱`;
-
-        const randomMediaUrl = mediaUrls[Math.floor(Math.random() * mediaUrls.length)];
-        const isVideo = randomMediaUrl.endsWith('.mp4');
+        const aliveMessage = `╭══════════════⊷
+┃ ❍ 𝑼𝒔𝒆𝒓 : ${userName}
+┃ ❍ 𝑷𝒊𝒏𝒈 : ${ping}ms
+┃ ❍ 𝑻𝒊𝒎𝒆 : ${currentTime}
+┃ ❍ 𝑼𝒑𝒕𝒊𝒎𝒆 : ${uptimeFormatted}
+┃ ❍ 𝑽𝒆𝒓𝒔𝒊𝒐𝒏 : ${settings.version || '3.0.0'}
+┃ ❍ 𝑴𝒐𝒅𝒆 : ${botMode}
+┃ ❍ 𝑹𝑨𝑴 : ${usedMem}GB / ${totalMem}GB
+╰═════════════════⊷
+╭══════════════⊷
+┃ ❍ 𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝒊𝒔 𝒐𝒏𝒍𝒊𝒏𝒆 & 𝒂𝒄𝒕𝒊𝒗𝒆!
+╰══════════════⊷
+> 📝 𝗧𝘆𝗽𝗲 .𝗺𝗲𝗻𝘂 𝗳𝗼𝗿 𝗰𝗼𝗺𝗺𝗮𝗻𝗱𝘀
+> _Crafted by Aadhi.xd乡_`;
 
         await sock.sendMessage(chatId, {
-            [isVideo ? 'video' : 'image']: { url: randomMediaUrl },
+            video: { url: aliveVideoUrl },
             caption: aliveMessage.trim(),
-            ...(isVideo ? { mimetype: 'video/mp4', ptv: false } : {})
+            mimetype: 'video/mp4',
+            ptv: false
         }, { quoted: message });
 
     } catch (error) {
