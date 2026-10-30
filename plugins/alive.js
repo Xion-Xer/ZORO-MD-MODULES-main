@@ -55,7 +55,9 @@ async function aliveCommand(sock, chatId, message) {
         const end = Date.now();
         const ping = Math.round((end - start) / 2);
         
-        await sock.sendMessage(chatId, { delete: tempMsg.key });
+        try {
+            await sock.sendMessage(chatId, { delete: tempMsg.key });
+        } catch (e) {}
         
         const uptimeInSeconds = process.uptime();
         const uptimeFormatted = formatTime(uptimeInSeconds);
@@ -68,20 +70,23 @@ async function aliveCommand(sock, chatId, message) {
 
         let thumbnailBuffer = null;
         let base64Image = '';
+        
+        // Safe and optimized Sharp processing inside try-catch to completely prevent bot OOM/crashes
         try {
-            const response = await fetch(vcardImageUrl);
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
+            const response = await fetch(vcardImageUrl, { signal: AbortSignal.timeout(4000) });
+            if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
 
-            thumbnailBuffer = await sharp(buffer)
-                .resize(300, 300, { fit: 'cover', position: 'center' })
-                .flatten({ background: { r: 255, g: 255, b: 255 } }) 
-                .jpeg({ quality: 100 })
-                .toBuffer();
-            
-            base64Image = thumbnailBuffer.toString('base64');
+                thumbnailBuffer = await sharp(buffer)
+                    .resize(200, 200, { fit: 'cover', position: 'center' })
+                    .jpeg({ quality: 80, progressive: true })
+                    .toBuffer();
+                
+                base64Image = thumbnailBuffer.toString('base64');
+            }
         } catch (err) {
-            console.log('Error processing image with sharp for alive vcard:', err);
+            console.log('⚠️ Alive vcard image processing bypassed safely:', err.message);
         }
 
         const vcardName = "Aadhi Xd";
@@ -104,7 +109,7 @@ async function aliveCommand(sock, chatId, message) {
                 contactMessage: {
                     displayName: vcardName,
                     vcard: vcard,
-                    jpegThumbnail: thumbnailBuffer
+                    jpegThumbnail: thumbnailBuffer || undefined
                 }
             }
         };
@@ -124,7 +129,6 @@ async function aliveCommand(sock, chatId, message) {
 > 📝 𝗧𝘆𝗽𝗲 .𝗺𝗲𝗻𝘂 𝗳𝗼𝗿 𝗰𝗼𝗺𝗺𝗮𝗻𝗱𝘀
 > _Crafted by Aadhi.xd乡_`;
 
-        // നീ ചോദിച്ചതുപോലെ ചാനൽ ഹെഡറും ഫോർവേഡ് ലുക്കും (contextInfo) നൽകിയിരിക്കുന്നു
         await sock.sendMessage(chatId, {
             video: { url: aliveVideoUrl },
             caption: aliveMessage.trim(),
@@ -135,7 +139,7 @@ async function aliveCommand(sock, chatId, message) {
                 isForwarded: true,
                 forwardedNewsletterMessageInfo: {
                     newsletterJid: '120363321456789012@newsletter',
-                    newsletterName: '𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝑶𝒇𝒇𝒊𝒄𝒊𝒂𝒍',
+                    newsletterName: '𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝑶𝒇𝒇𝒊𝒄𝒊𝒂',
                     serverMessageId: 100
                 }
             }
@@ -143,7 +147,7 @@ async function aliveCommand(sock, chatId, message) {
 
     } catch (error) {
         console.error('Error in alive command:', error);
-        await sock.sendMessage(chatId, { text: '🟢 Bot is alive and running!' }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '🟢 Zoro MD is alive and running!' }, { quoted: message });
     }
 }
 
