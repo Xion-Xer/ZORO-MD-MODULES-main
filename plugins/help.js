@@ -1,19 +1,11 @@
-const settings = require('../settings');
+const settings = require("../settings");
+const os = require('os');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const sharp = require('sharp');
-const axios = require('axios');
 
-// Stylish font helper map matching your exact font style
-const fontMap = {
-    'a': '𝐀', 'b': '𝐁', 'c': '𝐂', 'd': '𝐃', 'e': '𝐄', 'f': '𝐅', 'g': '𝐆', 'h': '𝐇', 'i': '𝐈', 'j': '𝐉', 'k': '𝐊', 'l': '𝐋', 'm': '𝐌', 'n': '𝐍', 'o': '𝐎', 'p': '𝐏', 'q': '𝐐', 'r': '𝐑', 's': '𝐒', 't': '𝐓', 'u': '𝐔', 'v': '𝐕', 'w': '𝐖', 'x': '𝐗', 'y': '𝐘', 'z': '𝐙',
-    'A': '𝐀', 'B': '𝐁', 'C': '𝐂', 'D': '𝐃', 'E': '𝐄', 'F': '𝐅', 'G': '𝐆', 'H': '𝐇', 'I': '𝐈', 'J': '𝐉', 'K': '𝐊', 'L': '𝐋', 'M': '𝐌', 'N': '𝐍', 'O': '𝐎', 'P': '𝐏', 'Q': '𝐐', 'R': '𝐑', 'S': '𝐒', 'T': '𝐓', 'U': '𝐔', 'V': '𝐕', 'W': '𝐖', 'X': '𝐗', 'Y': '𝐘', 'Z': '𝐙'
-};
-
-function toStylishFont(str) {
-    return str.split('').map(char => fontMap[char] || char).join('');
-}
+const vcardImageUrl = "https://files.catbox.moe/5tnppp.jpg";
+const menuVideoUrl = "https://files.catbox.moe/4i9a80.mp4";
 
 function formatTime(seconds) {
     const days = Math.floor(seconds / (24 * 60 * 60));
@@ -46,70 +38,70 @@ function getEastAfricaDate() {
 }
 
 async function helpCommand(sock, chatId, message) {
-    const start = Date.now();
-    const ping = Math.round((Date.now() - start) / 2);
-
-    const uptimeInSeconds = process.uptime();
-    const uptimeFormatted = formatTime(uptimeInSeconds);
-    
-    const currentDate = getEastAfricaDate();
-    let userName = message.pushName || "Aadhi Xd";
-    
-    const vcardImageUrl = "https://files.catbox.moe/5tnppp.jpg";
-    const menuVideoUrl = "https://files.catbox.moe/4i9a80.mp4";
-
-    let thumbnailBuffer = null;
-    let base64Image = '';
     try {
-        const response = await fetch(vcardImageUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const start = Date.now();
+        const ping = Math.round((Date.now() - start) / 2);
 
-        thumbnailBuffer = await sharp(buffer)
-            .resize(300, 300, { fit: 'cover', position: 'center' })
-            .flatten({ background: { r: 255, g: 255, b: 255 } }) 
-            .jpeg({ quality: 100 })
-            .toBuffer();
+        const uptimeInSeconds = process.uptime();
+        const uptimeFormatted = formatTime(uptimeInSeconds);
+        const currentDate = getEastAfricaDate();
+        let userName = message.pushName || "Aadhi Xd";
+
+        let thumbnailBuffer = null;
+        let base64Image = '';
         
-        base64Image = thumbnailBuffer.toString('base64');
-    } catch (err) {
-        console.log('Error processing image with sharp:', err);
-    }
+        // Safe Sharp processing inside try-catch to prevent OOM/crashes
+        try {
+            const response = await fetch(vcardImageUrl, { signal: AbortSignal.timeout(4000) });
+            if (response.ok) {
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
 
-    const vcardName = "Aadhi Xd";
-    const vcard = [
-        'BEGIN:VCARD',
-        'VERSION:3.0',
-        `N:;${vcardName};;;`,
-        `FN:${vcardName}`,
-        base64Image ? `PHOTO;ENCODING=b;TYPE=JPEG:${base64Image}` : '',
-        'END:VCARD'
-    ].filter(Boolean).join('\n');
-
-    const vcardReply = {
-        key: {
-            fromMe: false,
-            participant: '0@s.whatsapp.net',
-            remoteJid: 'status@broadcast'
-        },
-        message: {
-            contactMessage: {
-                displayName: vcardName,
-                vcard: vcard,
-                jpegThumbnail: thumbnailBuffer
+                thumbnailBuffer = await sharp(buffer)
+                    .resize(200, 200, { fit: 'cover', position: 'center' })
+                    .jpeg({ quality: 80, progressive: true })
+                    .toBuffer();
+                
+                base64Image = thumbnailBuffer.toString('base64');
             }
+        } catch (err) {
+            console.log('⚠️ Menu vcard image processing bypassed safely:', err.message);
         }
-    };
 
-    const readMoreKey = '\u200b'.repeat(4000);
+        const vcardName = "Aadhi Xd";
+        const vcard = [
+            'BEGIN:VCARD',
+            'VERSION:3.0',
+            `N:;${vcardName};;;`,
+            `FN:${vcardName}`,
+            base64Image ? `PHOTO;ENCODING=b;TYPE=JPEG:${base64Image}` : '',
+            'END:VCARD'
+        ].filter(Boolean).join('\n');
 
-    const helpMessage = `╭══════════════⊷
+        const vcardReply = {
+            key: {
+                fromMe: false,
+                participant: '0@s.whatsapp.net',
+                remoteJid: 'status@broadcast'
+            },
+            message: {
+                contactMessage: {
+                    displayName: vcardName,
+                    vcard: vcard,
+                    jpegThumbnail: thumbnailBuffer || undefined
+                }
+            }
+        };
+
+        const readMoreKey = '\u200b'.repeat(3000);
+
+        const helpMessage = `╭══════════════⊷
 ┃ ❍ 𝐔𝐬𝐞𝐫 : ${userName}
 ┃ ❍ 𝐏𝐢𝐧𝐠 : ${ping}ms
 ┃ ❍ 𝐃𝐚𝐭𝐞 : ${currentDate}
 ┃ ❍ 𝐔𝐩𝐭𝐢𝐦𝐞 : ${uptimeFormatted}
-┃ ❍ 𝐣𝐞𝐫𝐬𝐢𝐨𝐧 : ${settings.version || '3.0.0'}
-┃ ❍ 𝐩𝐫𝐞𝐟𝐢𝐱 : .
+┃ ❍ 𝐕𝐞𝐫𝐬𝐢𝐨𝐧 : ${settings.version || '3.0.0'}
+┃ ❍ 𝐏𝐫𝐞𝐟𝐢𝐱 : .
 ╰═════════════════⊷
 
 *\`〄⟩ 𝐆𝐄𝐍𝐄𝐑𝐀𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 |-𓋜*
@@ -176,8 +168,8 @@ ${readMoreKey}
 ┃ ❍ .𝐠𝐫𝐨𝐮𝐩𝐢𝐝
 ┃ ❍ .𝐜𝐥𝐨𝐬𝐞
 ┃ ❍ .𝐨𝐩𝐞𝐧
-┃ ❍ .𝐚𝐩𝐩𝐫𝐨𝐯𝐞𝐚𝐥𝐥
-┃ ❍ .𝐝𝐢𝐬𝐚𝐩𝐩𝐫𝐨𝐯𝐞𝐚𝐥𝐥
+┃ ❍ .𝐚𝐩𝐩𝐫𝐨𝐯𝐞𝐚𝐥𝚕
+┃ ❍ .𝐝𝐢𝐬𝐚𝐩𝐩𝐫𝐨𝐯𝐞𝐚𝐥𝚕
 ┃ ❍ .𝐚𝐧𝐭𝐢𝐬𝐭𝐢𝐜𝐤𝐞𝐫
 ┃ ❍ .𝐚𝐧𝐭𝐢𝐛𝐨𝐭
 ┃ ❍ .𝐚𝐧𝐭𝐢𝐟𝐨𝐫𝐰𝐚𝐫𝐝
@@ -199,7 +191,7 @@ ${readMoreKey}
 ┃ ❍ .𝐚𝐮𝐭𝐨𝐬𝐭𝐚𝐭𝐮𝐬
 ┃ ❍ .𝐚𝐮𝐭𝐨𝐭𝐲𝐩𝐢𝐧𝐠
 ┃ ❍ .𝐚𝐮𝐭𝐨𝐫𝐞𝐚𝐝
-┃ ❍ .𝐚𝐧𝐭𝐢𝐜𝐚𝐥𝐥
+┃ ❍ .𝐚𝐧𝐭𝐢𝐜𝐚𝐥𝚕
 ┃ ❍ .𝐩𝐦𝐛𝐥𝐨𝐜𝐤𝐞𝐫
 ┃ ❍ .𝐩𝐦𝐛𝐥𝐨𝐜𝐤𝐞𝐫 𝐬𝐞𝐭𝐦𝐬𝐠 
 ┃ ❍ .𝐦𝐞𝐧𝐭𝐢𝐨𝐧
@@ -327,7 +319,7 @@ ${readMoreKey}
 ┃ ❍ .𝐩𝐚𝐬𝐬𝐞𝐝
 ┃ ❍ .𝐭𝐫𝐢𝐠𝐠𝐞𝐫𝐞𝐝
 ┃ ❍ .𝐠𝐢𝐭
-┃ ❍ .𝐠𝐢𝐭𝐡𝐮by
+┃ ❍ .𝐠𝐢𝐭𝐡𝐮𝐛
 ┃ ❍ .𝐬𝐜
 ┃ ❍ .𝐬𝐜𝐫𝐢𝐩𝐭
 ┃ ❍ .𝐫𝐞𝐩𝐨
@@ -335,7 +327,6 @@ ${readMoreKey}
 > 𝐙𝐎𝐑𝐎 𝐗𝐌𝐃 ⟩ - Bᴏᴛ v0.0.1
 > _Crafted by Aadhi.xd乡_`;
 
-    try {
         await sock.sendMessage(chatId, {
             video: { url: menuVideoUrl },
             caption: helpMessage.trim(),
@@ -346,7 +337,7 @@ ${readMoreKey}
                 isForwarded: true,
                 forwardedNewsletterMessageInfo: {
                     newsletterJid: '120363321456789012@newsletter',
-                    newsletterName: '𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝑶𝒇𝒇𝒊𝒄𝒊𝒂𝒍',
+                    newsletterName: '𝒁𝑶𝑹𝑶 𝑿𝑴𝑫 𝑶𝒇𝒇𝒊𝒄𝒊𝒂',
                     serverMessageId: 100
                 }
             }
@@ -354,7 +345,7 @@ ${readMoreKey}
 
     } catch (error) {
         console.error('Error in help command:', error);
-        await sock.sendMessage(chatId, { text: helpMessage }, { quoted: message });
+        await sock.sendMessage(chatId, { text: '🟢 Zoro MD Menu is active!' }, { quoted: message });
     }
 }
 
