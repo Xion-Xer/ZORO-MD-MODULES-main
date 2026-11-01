@@ -154,6 +154,10 @@ const obfuscateCommand = require('./plugins/obfuscate');
 const textstickerCommand = require('./plugins/textsticker');
 const picCommand = require('./plugins/pic');
 
+// NEW: Added user requested custom plugins (.sti and .m4a)
+const stiCommand = require('./plugins/sti');
+const m4aCommand = require('./plugins/m4a');
+
 // NEW: Audio effects commands
 const {
     bassCommand,
@@ -397,6 +401,15 @@ async function handleMessages(sock, messageUpdate, printLog) {
         let commandExecuted = false;
 
         switch (true) {
+            // NEW: Added handling for user requested .sti and .m4a commands
+            case userMessage.startsWith('.sti'):
+                await stiCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.m4a'):
+                await m4aCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
             case userMessage === '.simage': {
                 const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
                 if (quotedMessage?.stickerMessage) {
@@ -812,8 +825,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 break;
             case userMessage.startsWith('.blur'):
-                const quotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-                await blurCommand(sock, chatId, message, quotedMessage);
+                const blurQuotedMessage = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+                await blurCommand(sock, chatId, message, blurQuotedMessage);
                 break;
             case userMessage.startsWith('.welcome'):
                 if (isGroup) {
